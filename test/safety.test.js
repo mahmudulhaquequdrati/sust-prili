@@ -8,7 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { analyzeTicket } = require('../src/analyze');
-const { screenReply, evaluatePolishedReply } = require('../src/safety');
+const { screenReply } = require('../src/safety');
 
 // ---- screenReply unit checks -------------------------------------------------
 test('screen flags a credential request', () => {
@@ -37,44 +37,6 @@ test('screen allows the approved official-channels phrasing', () => {
 test('screen flags third-party redirection (phone/url)', () => {
   assert.strictEqual(screenReply('Please call +8801712345678 to resolve this.').safe, false);
   assert.strictEqual(screenReply('Visit http://refunds.example.com to claim.').safe, false);
-});
-
-// ---- LLM-output evaluation (AI response is checked, not trusted) ------------
-const EN_BASE = 'We have noted your concern about transaction TXN-9101. Please do not share your PIN or OTP with anyone. Our dispute team will review the case and contact you through official support channels.';
-const BN_BASE = 'আপনার লেনদেন TXN-9701 এর বিষয়ে আমরা অবগত হয়েছি। অনুগ্রহ করে কারো সাথে আপনার পিন বা ওটিপি শেয়ার করবেন না।';
-
-test('accepts a clean English paraphrase that preserves the txn id', () => {
-  const polished = 'We have logged your concern regarding transaction TXN-9101. Please never share your PIN or OTP with anyone. Our dispute team will follow up through official support channels.';
-  const v = evaluatePolishedReply(polished, { baseReply: EN_BASE, relevantTransactionId: 'TXN-9101' });
-  assert.strictEqual(v.accept, true, v.reasons.join(','));
-});
-
-test('rejects an LLM rewrite that requests credentials', () => {
-  const v = evaluatePolishedReply('Sure! Please share your OTP so we can verify transaction TXN-9101.', { baseReply: EN_BASE, relevantTransactionId: 'TXN-9101' });
-  assert.strictEqual(v.accept, false);
-});
-
-test('rejects a hallucinated transaction id', () => {
-  const v = evaluatePolishedReply('We have noted transaction TXN-9999 and will review it.', { baseReply: EN_BASE, relevantTransactionId: 'TXN-9101' });
-  assert.ok(v.reasons.includes('hallucinated_txn_id'));
-  assert.strictEqual(v.accept, false);
-});
-
-test('rejects inventing an id when none was identified', () => {
-  const v = evaluatePolishedReply('We found transaction TXN-1234 for you.', { baseReply: 'Thank you for reaching out. Please do not share your PIN or OTP.', relevantTransactionId: null });
-  assert.strictEqual(v.accept, false);
-});
-
-test('rejects losing the Bangla language', () => {
-  const v = evaluatePolishedReply('We have noted your concern about TXN-9701 and will review it.', { baseReply: BN_BASE, relevantTransactionId: 'TXN-9701' });
-  assert.ok(v.reasons.includes('lost_bangla'));
-  assert.strictEqual(v.accept, false);
-});
-
-test('accepts a Bangla paraphrase that stays Bangla', () => {
-  const polished = 'আপনার লেনদেন TXN-9701 এর বিষয়টি আমরা নথিভুক্ত করেছি। অনুগ্রহ করে আপনার পিন বা ওটিপি কারো সাথে শেয়ার করবেন না।';
-  const v = evaluatePolishedReply(polished, { baseReply: BN_BASE, relevantTransactionId: 'TXN-9701' });
-  assert.strictEqual(v.accept, true, v.reasons.join(','));
 });
 
 // ---- end-to-end adversarial inputs ------------------------------------------

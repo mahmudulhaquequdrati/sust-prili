@@ -1,9 +1,9 @@
 'use strict';
 
-// safety.js — the hard guardrail. Every customer_reply (rules-generated OR
-// LLM-polished) is screened here before it leaves the service. These checks
-// mirror the scored Safety Rules (Section 8): never request credentials, never
-// promise a refund/reversal/unblock, never redirect to a third party.
+// safety.js — the hard guardrail. Every customer_reply is screened here before
+// it leaves the service. These checks mirror the scored Safety Rules (Section 8):
+// never request credentials, never promise a refund/reversal/unblock, never
+// redirect to a third party.
 
 // Credential request: an imperative asking the customer to hand over a secret,
 // WITHOUT a negation guarding it ("do not share your OTP" is safe).
@@ -20,9 +20,6 @@ const REFUND_PROMISE_2 = /\b(your (refund|reversal) (has|is) (been )?(processed|
 const PHONE_IN_REPLY = /(?:\+?\d[\s-]?){8,}/;
 const URL_IN_REPLY = /https?:\/\/|www\./i;
 const THIRD_PARTY = /\b(western union|send money to|transfer to this|contact the police|call this number|outside official)\b/i;
-
-const BANGLA = /[ঀ-৿]/;
-const TXN_REF = /\bTXN[-_]?\d+/gi;
 
 function screenReply(text) {
   const violations = [];
@@ -47,44 +44,4 @@ function screenReply(text) {
   return { safe: violations.length === 0, violations };
 }
 
-// Evaluation gate for an LLM-polished reply. The rules reply is already correct;
-// an LLM rewrite is ONLY accepted if it passes ALL of these checks, otherwise we
-// keep the deterministic reply. This guards Evidence Reasoning, Safety, and
-// Bangla/Banglish quality (rubric tie-breaker #6) against a stray model output.
-function evaluatePolishedReply(polished, ctx) {
-  const reasons = [];
-  const { baseReply = '', relevantTransactionId = null } = ctx || {};
-
-  if (typeof polished !== 'string' || polished.trim() === '') {
-    return { accept: false, reasons: ['empty'] };
-  }
-  const text = polished.trim();
-
-  // Length sanity — a reply should stay concise, never balloon.
-  if (text.length > 1200) reasons.push('too_long');
-
-  // Safety must hold for the rewritten text too.
-  const screen = screenReply(text);
-  if (!screen.safe) reasons.push(`unsafe:${screen.violations.join('|')}`);
-
-  // No hallucinated transaction IDs: any TXN-xxx mentioned must equal the one we
-  // actually identified. If we found none, the reply must not invent one.
-  const ids = text.match(TXN_REF) || [];
-  for (const raw of ids) {
-    const norm = raw.toUpperCase().replace('_', '-');
-    if (!relevantTransactionId || norm !== String(relevantTransactionId).toUpperCase()) {
-      reasons.push('hallucinated_txn_id');
-      break;
-    }
-  }
-
-  // Language preservation (Bangla in -> Bangla out, English in -> English out).
-  const baseBangla = BANGLA.test(baseReply);
-  const polishedBangla = BANGLA.test(text);
-  if (baseBangla && !polishedBangla) reasons.push('lost_bangla');
-  if (!baseBangla && polishedBangla && !/[A-Za-z]/.test(text)) reasons.push('unexpected_language_switch');
-
-  return { accept: reasons.length === 0, reasons };
-}
-
-module.exports = { screenReply, evaluatePolishedReply };
+module.exports = { screenReply };

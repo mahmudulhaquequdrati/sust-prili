@@ -42,4 +42,4 @@ section · package.json · sample_output.json · .env.example · (opt) 90s video
 
 ## Runtime limits
 2 vCPU / 4 GB · no GPU · Docker <500MB (hard 1GB) · bind 0.0.0.0 · secrets via env only ·
-allowed external: major LLM providers (OpenAI/Anthropic/HF/Cohere/Google). No own-server/scraping calls.
+allowed external: major LLM providers (OpenAI/Anthropic/HF/Cohere/Google) — but our solution uses none (pure deterministic rule engine, zero outbound calls). No own-server/scraping calls.

@@ -11,7 +11,7 @@
 ## 2. Our Locked Decisions
 
 - **Stack:** Node.js + Express (plain JS, for speed).
-- **Engine:** Deterministic **rule-based core** does all the real work (evidence, verdict, classification, routing, safety); an **optional LLM** only polishes the reply text, with a **pure-rules fallback** so it works with **zero API keys**.
+- **Engine:** A **purely deterministic rule-based core** does all the work (evidence, verdict, classification, routing, safety, reply text) — **no external model or API**, **zero API keys**, and **zero outbound calls**.
 - **Deploy:** One **Docker image** → public host (**Render / Railway / Fly**) for the Live URL; same image = Docker-fallback submission.
 
 ## 3. The Hard Requirements (the contract)
@@ -130,7 +130,7 @@
 5. **T4** — Transaction matching + `evidence_verdict` (reproduce all 10 samples).
 6. **T5** — Classification: case_type, department, severity, human_review.
 7. **T6** — Safe reply + summary + next action (language-aware).
-8. **T7** — Optional LLM polish with timeout + safety re-filter + rules fallback.
+8. **T7** — Deterministic template reply re-screened by the safety filter (no LLM).
 9. **T8** — Test harness: 10 sample cases + adversarial safety battery.
 10. **T9** — Dockerize (<500MB, 0.0.0.0, no secrets baked).
 11. **T10** — Deploy live URL (Render/Railway/Fly), test from outside.

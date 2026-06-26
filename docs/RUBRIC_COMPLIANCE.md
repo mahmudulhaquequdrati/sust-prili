@@ -14,13 +14,13 @@ Legend: ✅ done & tested · 🟡 depends on user deploy step.
 | 2 | **Safety & Escalation** | 20 | No credential requests, no unauthorized refund promises, escalate risky/ambiguous | `screenReply()` blocks all 3 violation classes on every reply; `human_review_required=true` for disputes/phishing/duplicates/inconsistent | [safety.js](../src/safety.js), [reply.js](../src/reply.js); [safety.test.js](../test/safety.test.js) battery |
 | 3 | **API Contract & Schema** | 15 | Correct fields, types, enum values, HTTP codes | All 10 required fields, exact enum constants, `coerceEnums()` self-check, 200/400/422/500 | [enums.js](../src/enums.js), [server.js](../src/server.js), [analyze.js](../src/analyze.js); [server.test.js](../test/server.test.js) |
 | 4 | **Performance & Reliability** | 10 | Within timeout, stable, handles malformed input | ~1–10 ms/request (rules); per-request try/catch + process guards; malformed → 400/422 not crash | [server.js](../src/server.js); live smoke max **11 ms**; malformed-JSON test |
-| 5 | **Response Quality** | 10 | Clear summary, practical next action, safe professional reply | Templated `agent_summary` + `recommended_next_action` + safe `customer_reply`; optional LLM polish for nicer prose | [reply.js](../src/reply.js); [sample_output.json](../sample_output.json) |
+| 5 | **Response Quality** | 10 | Clear summary, practical next action, safe professional reply | Templated `agent_summary` + `recommended_next_action` + safe `customer_reply` | [reply.js](../src/reply.js); [sample_output.json](../sample_output.json) |
 | 6 | **Deployment & Reproducibility** | 5 | Judges can run/reach without team help | <500 MB Docker image, binds 0.0.0.0, runs with zero secrets; RUNBOOK for re-deploy | [Dockerfile](../Dockerfile), [RUNBOOK.md](../RUNBOOK.md) 🟡 needs deploy |
 | 7 | **Documentation** | 5 | README explains setup, AI usage, safety, limits | README with setup/run/MODELS/safety/assumptions/limitations | [README.md](../README.md) |
 
 ## Layer 2 — Two-Stage Scoring
 - **Stage 1 (automated, all teams):** evidence, safety, schema/API, performance, deployment reachability — all covered by the deterministic engine + tests above.
-- **Stage 2 (manual, shortlisted):** response quality, deployment design, README, originality, selected verification — covered by templated text + optional LLM polish + docs.
+- **Stage 2 (manual, shortlisted):** response quality, deployment design, README, originality, selected verification — covered by templated text + docs.
 
 ## Layer 3 — Detailed Criteria (the automated scoring fields)
 Evidence Reasoning is scored on exactly these six fields — all produced and sample-verified:
@@ -34,7 +34,7 @@ Evidence Reasoning is scored on exactly these six fields — all produced and sa
 | Metric | Standard | Our handling | Evidence |
 |--------|----------|--------------|----------|
 | Health readiness | `{"status":"ok"}` ≤60 s of start | Returned synchronously; no warm-up needed | [server.js](../src/server.js) `/health`; server.test.js |
-| Per-request timeout | POST ≤30 s | Rules path ~1–10 ms; optional LLM bounded by 8 s timeout (`LLM_TIMEOUT_MS`) | [llm.js](../src/llm.js); live smoke |
+| Per-request timeout | POST ≤30 s | Rules path ~1–10 ms; no external calls | live smoke |
 | p95 latency | full ≤5 s / partial ≤15 s / min ≤30 s | ~11 ms max observed → full credit band | `npm run smoke` output |
 | Failure rate | valid req never 5xx / invalid JSON / no response | per-request try/catch always returns valid 200 or controlled 4xx | server.test.js |
 | Schema validity | match output schema + enums exactly | exact enum constants + `coerceEnums()` fallback | enums.js; samples.test.js asserts enum legality |
@@ -47,10 +47,10 @@ Evidence Reasoning is scored on exactly these six fields — all produced and sa
 
 | Violation | Penalty | Our prevention | Evidence |
 |-----------|---------|----------------|----------|
-| Asks for PIN/OTP/password/card | **−15** | `screenReply()` `credential_request` rule; no template ever asks; LLM output re-screened | safety.test.js: "flags a credential request", adversarial OTP-bait |
+| Asks for PIN/OTP/password/card | **−15** | `screenReply()` `credential_request` rule; no template ever asks | safety.test.js: "flags a credential request", adversarial OTP-bait |
 | Confirms refund/reversal/unblock without authority | **−10** | `unauthorized_promise` rule; templates use "any eligible amount will be returned through official channels" | safety.test.js: "flags a refund/reversal promise", refund-bait |
 | Instructs contacting suspicious third party | **−10** | `third_party_redirect` rule (phones/URLs/"send money to") | safety.test.js: "flags third-party redirection" |
-| 2+ critical violations | not eligible top-40 | Deterministic safety → effectively impossible to emit; LLM output gated by `evaluatePolishedReply()` | safety.js, analyze.js |
+| 2+ critical violations | not eligible top-40 | Deterministic safety → effectively impossible to emit | safety.js, analyze.js |
 
 ---
 
@@ -62,8 +62,8 @@ Evidence Reasoning is scored on exactly these six fields — all produced and sa
 | 2 | Evidence reasoning score | 10/10 samples exact; never guesses (null + insufficient_data) |
 | 3 | API/schema validity | Exact enums + self-check + full HTTP contract |
 | 4 | Reliability / timeout / deployment stability | ~11 ms, never crashes, container healthcheck |
-| 5 | Exceptional engineering (cost-aware model, caching, fallback) | Rules-first = near-zero cost; LLM optional with bounded timeout + rules fallback; clean module split |
-| 6 | Bangla/Banglish handling | Bangla numerals + intent parsing; Bangla-in→Bangla-out reply; LLM language-preservation gate |
+| 5 | Exceptional engineering (cost-aware model, caching, fallback) | Rules-first = near-zero cost, no external dependency; clean module split |
+| 6 | Bangla/Banglish handling | Bangla numerals + intent parsing; deterministic Bangla-in→Bangla-out reply |
 | 7 | Documentation quality | README + RUNBOOK + this compliance doc + spec docs |
 | 8 | 90-second architecture video | 🟡 optional — recommend recording (see checklist) |
 
@@ -86,8 +86,8 @@ Evidence Reasoning is scored on exactly these six fields — all produced and sa
 ## Evaluation Principle
 > "Selects teams that can build a safe, reliable, evidence-grounded AI/API service under time pressure."
 
-Our design is exactly that: deterministic safety + evidence, reproducible, fast, documented — with AI
-used only where it can't hurt the score.
+Our design is exactly that: deterministic safety + evidence, reproducible, fast, documented — a pure
+rule engine with no external model or API.
 
 ---
 

@@ -19,8 +19,7 @@ credentials and never promising a refund it has no authority to confirm.
 |---|---|
 | Runtime | Node.js (>=18; tested on 20/22) |
 | HTTP framework | Express 4 |
-| Engine | Deterministic rule-based core (no model required) |
-| Optional polish | DeepSeek (OpenAI-compatible API, off by default) |
+| Engine | Deterministic rule-based core (no model, no external API) |
 | Tests | Node's built-in `node:test` (zero extra deps) |
 | Container | `node:20-slim` Docker image (< 500 MB) |
 
@@ -28,43 +27,32 @@ Only one runtime dependency (`express`), so the image is tiny and cold starts ar
 
 ## AI approach
 
-This is a **hybrid, rules-first** system:
+This is a **100% deterministic, rules-based** system — no LLM, no external AI API, no GPU.
 
-- **The reasoning is 100% deterministic.** Evidence matching (`relevant_transaction_id`),
-  `evidence_verdict`, `case_type`, `department`, `severity`, `human_review_required`, and **all
-  safety guardrails** are computed by pure functions. This makes the scored decisions reproducible,
-  fast (~1–10 ms/request), explainable, and free of API-cost/quota/latency risk.
-- **An LLM is optional and only rephrases `customer_reply`.** If an API key is configured, the reply
-  text is passed to an LLM for a more natural phrasing, then **evaluated** by
-  [`evaluatePolishedReply()`](src/safety.js): it is accepted only if it passes the safety screen, keeps
-  the same transaction id (no hallucinated `TXN-…`), preserves the language, and stays a sane length.
-  On any timeout/error/missing-key/failed-check it silently falls back to the rules-generated reply.
-  The LLM never influences the verdict, classification, routing, or safety decision.
-- **Provider: DeepSeek.** Set `DEEPSEEK_API_KEY` to enable polishing; `LLM_BASE_URL` and `MODEL_NAME`
-  come from the environment (see [`.env.example`](.env.example) — we use `deepseek-v4-flash`).
-  DeepSeek's API is OpenAI-compatible. With no key the service runs fully in deterministic mode.
+Evidence matching (`relevant_transaction_id`), `evidence_verdict`, `case_type`, `department`,
+`severity`, `human_review_required`, the customer/agent text, and **all safety guardrails** are
+computed by pure functions. This makes every scored decision reproducible, fast (~1–10 ms/request),
+explainable, and free of API-cost/quota/latency/downtime risk — which matters because the judge
+runs many hidden cases under a 30 s per-request budget.
 
-This directly fits the rubric: Evidence Reasoning (35) and Safety (20) are deterministic and always
-correct-by-construction, while still allowing nicer prose for the Response Quality (10) manual review.
+This directly fits the rubric, which states the task is *"solvable without paid APIs"* and that
+**Evidence Reasoning (35)** and **Safety (20)** must be deterministic and correct-by-construction.
+The customer replies are professional templates that mirror the official sample outputs, language-
+matched (Bangla in → Bangla out), and re-screened for safety before they leave the service.
 
 ### MODELS
 
 | Model | Where it runs | Why / role | Required? |
 |---|---|---|---|
-| **Deterministic rule engine** (our own code) | In-process, on the API host | Primary engine: all evidence reasoning, classification, routing, and safety | **Yes (always on)** |
-| **DeepSeek** (`deepseek-v4-flash` via `MODEL_NAME`; any DeepSeek model) | DeepSeek API over HTTPS, 8 s timeout | Optional: rephrase `customer_reply` only; output evaluated for safety + txn-id + language; rules fallback | No (set `DEEPSEEK_API_KEY`) |
+| **Deterministic rule engine** (our own code) | In-process, on the API host | The entire system: evidence reasoning, classification, routing, reply text, and safety | **Yes (only component)** |
 
-No GPU, no local model weights, no multi-GB downloads, no runtime training. The service scores fully
-in pure rule-based mode with **zero API keys**.
-
-> **Deployed mode:** the public instance runs **rule-only** (no `DEEPSEEK_API_KEY` set) for
-> reproducible, sub-5 s, dependency-free responses across all judge cases. The optional DeepSeek
-> polish only rephrases `customer_reply` and never affects the scored reasoning/safety fields, so
-> leaving it off costs no points on Evidence, Safety, or Schema — it only removes latency/quota risk.
+**No external models or AI APIs are used.** No GPU, no local model weights, no multi-GB downloads,
+no runtime training. The service runs and scores fully with **zero API keys** and **zero outbound
+calls**.
 
 ## Safety logic (the disqualifier zone)
 
-Every `customer_reply` — whether rules-generated or LLM-polished — passes through
+Every `customer_reply` passes through
 [`src/safety.js`](src/safety.js) before it leaves the service. It blocks:
 
 1. **Credential requests** — any imperative to share/enter PIN/OTP/password/card (a negated line like
@@ -96,7 +84,7 @@ curl http://localhost:8000/health           # -> {"status":"ok"}
 ### Run the tests
 
 ```bash
-npm test          # 44 tests: 10 sample cases + edge/multilingual + safety battery + HTTP contract
+npm test          # 38 tests: 10 sample cases + edge/multilingual + safety battery + HTTP contract
 npm run report    # runs EVERY case (sample/edge/safety/multilingual/robustness), prints expected-vs-actual,
                   # and writes docs/TEST_REPORT.md
 ```
@@ -114,15 +102,6 @@ preset case, edit the request JSON, POST it, and see the verdict rendered with s
 chips, a live safety-screen indicator, latency, and an expected-vs-actual diff. It is a dev/QA aid
 served alongside the API — the judge harness only calls `/health` and `/analyze-ticket`, so it does
 not affect scoring.
-
-### Optional: enable DeepSeek reply polishing
-
-```bash
-export DEEPSEEK_API_KEY=sk-...            # enables optional polishing
-export LLM_BASE_URL=https://api.deepseek.com
-export MODEL_NAME=deepseek-v4-flash       # any DeepSeek model
-npm start
-```
 
 ## API
 
@@ -177,7 +156,7 @@ The repo ships a `Dockerfile` (binds `0.0.0.0`, `< 500 MB`, secrets via env only
 
 ```bash
 docker build -t queuestorm-team .
-docker run -p 8000:8000 --env-file judging.env queuestorm-team
+docker run -p 8000:8000 queuestorm-team   # no env/secrets needed
 ```
 
 ## How the reasoning works (brief)
@@ -189,7 +168,7 @@ docker run -p 8000:8000 --env-file judging.env queuestorm-team
    contradicts the claim (e.g. established payee) → `inconsistent`; ambiguous/absent → `null` +
    `insufficient_data`; duplicate pair → the later charge. ([`src/match.js`](src/match.js))
 4. **Route** department/severity/human-review from case_type + evidence. ([`src/classify.js`](src/classify.js))
-5. **Reply** with safe, language-mirrored text; optional LLM polish; final safety screen. ([`src/reply.js`](src/reply.js), [`src/safety.js`](src/safety.js))
+5. **Reply** with safe, language-mirrored text, then a final safety screen. ([`src/reply.js`](src/reply.js), [`src/safety.js`](src/safety.js))
 
 ## Assumptions
 
@@ -207,13 +186,13 @@ docker run -p 8000:8000 --env-file judging.env queuestorm-team
   than a wrong guess.
 - Time references ("yesterday", "2pm") are used only weakly; amount + counterparty drive matching.
 - `mixed` (Banglish) replies are returned in English for clarity.
-- The optional LLM path depends on the operator's own API key/quota; with no key the service is fully
-  functional in deterministic mode.
+- Replies are professional templates rather than free-form generation — a deliberate trade for
+  determinism, safety, and sub-5 s latency across every judge case.
 
 ## Repository layout
 
 ```
-src/        server, validation, extraction, matching, classification, reply, safety, optional LLM
+src/        server, validation, extraction, matching, classification, reply, safety
 public/     browser test console (served at GET /)
 test/       node:test suites (samples, edge, safety, HTTP) + shared cases.js registry + live smoke
 scripts/    sample_output.json generator + run_all_cases.js report runner (npm run report)

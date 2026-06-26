@@ -2,7 +2,7 @@
 
 // analyze.js — orchestrates the full pipeline for one ticket:
 //   validate(normalized) -> extract -> classify -> match -> route -> reply
-//   -> optional LLM polish -> safety screen -> assemble response.
+//   -> safety screen -> assemble response.
 // Always returns a complete, schema-valid response object. Any unexpected
 // internal error degrades to a safe, generic-but-valid answer (never throws).
 
@@ -10,8 +10,7 @@ const { extractSignals } = require('./extract');
 const { classifyCaseType, route } = require('./classify');
 const { matchTransaction } = require('./match');
 const { buildReply } = require('./reply');
-const { screenReply, evaluatePolishedReply } = require('./safety');
-const { polishReply, isEnabled } = require('./llm');
+const { screenReply } = require('./safety');
 const { VALID, CASE_TYPE, DEPARTMENT, VERDICT, SEVERITY } = require('./enums');
 
 const SAFE_FALLBACK_REPLY =
@@ -37,22 +36,9 @@ async function analyzeTicket(input) {
     const routing = route(caseType, match, signals);
     const reply = buildReply(caseType, match, signals);
 
-    // Optional LLM polish (best-effort). The rewrite is evaluated for safety,
-    // transaction-ID fidelity, and language preservation; only accepted if it
-    // passes every check, otherwise we keep the deterministic reply.
-    let customerReply = reply.customer_reply;
-    if (isEnabled()) {
-      const polished = await polishReply(customerReply);
-      const verdict = evaluatePolishedReply(polished, {
-        baseReply: customerReply,
-        relevantTransactionId: match.relevant_transaction_id,
-        language: signals.language,
-      });
-      if (verdict.accept) customerReply = polished.trim();
-    }
-
     // Final safety net: the rules reply is safe by construction, but never ship
     // an unsafe customer_reply under any circumstance.
+    let customerReply = reply.customer_reply;
     if (!screenReply(customerReply).safe) customerReply = SAFE_FALLBACK_REPLY;
 
     const response = coerceEnums({

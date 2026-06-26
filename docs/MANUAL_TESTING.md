@@ -12,7 +12,7 @@ Leave it running; open a second terminal for the curl commands below.
 
 ## 1. Automated tests (run first)
 ```bash
-npm test            # 44 tests: samples + edge/multilingual + safety + LLM-eval + HTTP contract — expect all pass
+npm test            # 38 tests: samples + edge/multilingual + safety + HTTP contract — expect all pass
 npm run report      # runs EVERY case across all categories, prints expected-vs-actual + full output
                     # per case, and writes docs/TEST_REPORT.md (also a non-zero exit gate)
 npm run smoke       # POSTs all 10 sample inputs to localhost:8000, checks schema/safety/latency
@@ -147,23 +147,5 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/nope
 
 ---
 
-## 7. Manual checks — AI MODE (DeepSeek) and AI-response evaluation
-
-Run with an LLM enabled to polish `customer_reply`. The AI output is still evaluated: any unsafe text,
-hallucinated transaction id, or language switch is rejected and the deterministic reply is used.
-
-```bash
-# DeepSeek (OpenAI-compatible)
-export DEEPSEEK_API_KEY=sk-...        # your key
-# optional override: export MODEL_NAME=deepseek-reasoner   # default is deepseek-chat
-npm start
-```
-Re-run the safety curls in §4 with the key set — replies should read more naturally but **still pass
-every safety check**. To prove the fallback, set a bad key (`DEEPSEEK_API_KEY=bad`) and confirm replies
-are still correct and safe (the rules reply is used on error). `npm test` must stay green with and
-without a key.
-
----
-
-## 8. Pre-submit gate
+## 7. Pre-submit gate
 Tick [docs/PROJECT_SPEC.md §9](PROJECT_SPEC.md) and the table in [RUBRIC_COMPLIANCE.md](RUBRIC_COMPLIANCE.md).

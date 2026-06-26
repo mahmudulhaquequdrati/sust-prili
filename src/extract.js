@@ -1,7 +1,7 @@
 'use strict';
 
 // extract.js — deterministic signal extraction from the complaint text.
-// No LLM here: matching/verdict must be reproducible. We pull out amounts
+// Fully deterministic: matching/verdict must be reproducible. We pull out amounts
 // (including Bangla numerals), transaction-type hints, and intent flags that
 // the classifier and matcher consume.
 
