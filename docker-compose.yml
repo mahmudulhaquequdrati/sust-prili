@@ -1,0 +1,27 @@
+# QueueStorm Investigator — local run via Docker Compose.
+#   Build & start:  docker compose up --build        (add -d to detach)
+#   Health:         curl http://localhost:8000/health
+#   Stop:           docker compose down
+#
+# Runs fully without any secret (pure rule-based mode). To enable optional
+# DeepSeek reply polishing, put DEEPSEEK_API_KEY in a local .env (gitignored)
+# or export it in your shell — Compose substitutes it below.
+services:
+  queuestorm:
+    build: .
+    image: queuestorm-team
+    container_name: queuestorm
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - MODEL_NAME=${MODEL_NAME:-}
+      - LLM_TIMEOUT_MS=${LLM_TIMEOUT_MS:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||8000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
