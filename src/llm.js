@@ -22,9 +22,11 @@ function getConfig() {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) return null;
 
+  // base URL + model come from the environment (.env / compose / platform).
+  // Trailing slashes are trimmed to avoid a `//chat/completions` URL.
   return {
     apiKey,
-    baseUrl: process.env.LLM_BASE_URL,
+    baseUrl: (process.env.LLM_BASE_URL || '').replace(/\/$/, ''),
     model: process.env.MODEL_NAME,
   };
 }

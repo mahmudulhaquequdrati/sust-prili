@@ -16,6 +16,7 @@ services:
     environment:
       - PORT=8000
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
       - MODEL_NAME=${MODEL_NAME:-}
       - LLM_TIMEOUT_MS=${LLM_TIMEOUT_MS:-}
     restart: unless-stopped

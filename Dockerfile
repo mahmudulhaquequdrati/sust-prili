@@ -12,7 +12,10 @@ RUN npm install --omit=dev --no-audit --no-fund
 
 # App source.
 COPY src ./src
+COPY public ./public
 COPY SUST_Preli_Sample_Cases.json ./SUST_Preli_Sample_Cases.json
+# Case registry powers the test console's preset dropdown (GET /cases); optional at runtime.
+COPY test/cases.js ./test/cases.js
 
 # The service binds 0.0.0.0:$PORT (default 8000).
 ENV PORT=8000

@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test test/*.test.js",
+    "report": "node scripts/run_all_cases.js",
     "smoke": "node test/live_smoke.js"
   },
   "engines": {

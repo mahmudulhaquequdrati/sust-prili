@@ -12,10 +12,16 @@ Leave it running; open a second terminal for the curl commands below.
 
 ## 1. Automated tests (run first)
 ```bash
-npm test            # 32 tests: 10 sample cases + safety + LLM-eval + HTTP contract — expect all pass
+npm test            # 44 tests: samples + edge/multilingual + safety + LLM-eval + HTTP contract — expect all pass
+npm run report      # runs EVERY case across all categories, prints expected-vs-actual + full output
+                    # per case, and writes docs/TEST_REPORT.md (also a non-zero exit gate)
 npm run smoke       # POSTs all 10 sample inputs to localhost:8000, checks schema/safety/latency
 ```
 `BASE_URL=https://your-deployed-url npm run smoke` runs the same checks against a live deployment.
+
+**Prefer clicking instead of curl?** Start the service (`npm start`) and open
+**http://localhost:8000/** — the browser console lets you run any preset or custom ticket and shows
+the verdict, a live safety indicator, latency, and an expected-vs-actual diff.
 
 ---
 
@@ -149,7 +155,7 @@ hallucinated transaction id, or language switch is rejected and the deterministi
 ```bash
 # DeepSeek (OpenAI-compatible)
 export DEEPSEEK_API_KEY=sk-...        # your key
-# optional override: export MODEL_NAME=deepseek-v4-flash
+# optional override: export MODEL_NAME=deepseek-reasoner   # default is deepseek-chat
 npm start
 ```
 Re-run the safety curls in §4 with the key set — replies should read more naturally but **still pass

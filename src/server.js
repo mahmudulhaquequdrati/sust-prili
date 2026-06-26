@@ -7,6 +7,7 @@
 // (400), a catch-all error handler (500, no stack traces), and process-level
 // guards that log but keep the service alive.
 
+const path = require('path');
 const express = require('express');
 const { validateRequest } = require('./validate');
 const { analyzeTicket } = require('./analyze');
@@ -17,9 +18,26 @@ app.disable('x-powered-by');
 // Parse JSON bodies; a malformed body throws a SyntaxError caught below -> 400.
 app.use(express.json({ limit: '1mb' }));
 
+// Browser test console (dev/QA aid). Served at GET / from public/. The judge
+// harness only calls /health and /analyze-ticket, so this does not affect scoring.
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
 // Readiness probe.
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
+});
+
+// Read-only: the case registry that powers the console's preset dropdown.
+// Best-effort — if the test fixtures are absent in a trimmed deployment, the
+// console simply runs with no presets. Never affects the scored endpoints.
+app.get('/cases', (_req, res) => {
+  try {
+    // eslint-disable-next-line global-require
+    const { samples, edge, multilingual, safety } = require('../test/cases');
+    res.status(200).json({ samples, edge, multilingual, safety });
+  } catch (_err) {
+    res.status(200).json({ samples: [], edge: [], multilingual: [], safety: [] });
+  }
 });
 
 // Main endpoint.

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QueueStorm Investigator — Test Console</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#171d26; --panel2:#1e2630; --line:#2a3340;
+    --text:#e6edf3; --muted:#8b97a7; --accent:#4f9cf9;
+    --green:#2ea043; --amber:#d29922; --orange:#db6d28; --red:#da3633; --gray:#56606e;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+  header{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:17px;margin:0;font-weight:650}
+  header .sub{color:var(--muted);font-size:13px}
+  .badge{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 11px;border-radius:20px;border:1px solid var(--line);background:var(--panel2)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--gray)}
+  .dot.ok{background:var(--green)} .dot.bad{background:var(--red)}
+  main{display:grid;grid-template-columns:minmax(420px,1fr) minmax(440px,1.1fr);gap:18px;padding:18px 22px;max-width:1400px;margin:0 auto}
+  @media(max-width:920px){main{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:16px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 12px}
+  label{display:block;font-size:12px;color:var(--muted);margin:12px 0 5px}
+  select,textarea,button{font-family:inherit;font-size:14px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text)}
+  select{width:100%;padding:9px 10px}
+  textarea{width:100%;min-height:300px;padding:11px;font-family:var(--mono);font-size:12.5px;resize:vertical;line-height:1.55}
+  .row{display:flex;gap:10px;align-items:center;margin-top:14px}
+  button{padding:10px 18px;background:var(--accent);border-color:var(--accent);color:#06101e;font-weight:650;cursor:pointer}
+  button:hover{filter:brightness(1.08)} button:disabled{opacity:.5;cursor:default}
+  button.ghost{background:var(--panel2);color:var(--text);border-color:var(--line);font-weight:500}
+  .meta{margin-left:auto;font-size:12.5px;color:var(--muted)}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:12.5px;font-weight:600;border:1px solid var(--line)}
+  .pill .k{color:var(--muted);font-weight:500}
+  .sev-low{background:#1c2b1e;color:#7ee787;border-color:#2c4030}
+  .sev-medium{background:#322a14;color:#e3b341;border-color:#4a3e1c}
+  .sev-high{background:#3a2415;color:#f0883e;border-color:#523320}
+  .sev-critical{background:#3d1d1d;color:#ff7b72;border-color:#5a2a2a}
+  .v-consistent{background:#1c2b1e;color:#7ee787;border-color:#2c4030}
+  .v-inconsistent{background:#322a14;color:#e3b341;border-color:#4a3e1c}
+  .v-insufficient_data{background:#21262d;color:#adbac7;border-color:var(--line)}
+  .grid{display:flex;flex-wrap:wrap;gap:8px}
+  .block{margin-top:14px}
+  .block .t{font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:4px}
+  .block .b{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13.5px;white-space:pre-wrap}
+  .reply{border-left:3px solid var(--accent)}
+  .safe-ok{color:#7ee787} .safe-bad{color:#ff7b72;font-weight:700}
+  .diff{margin-top:6px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .diff table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .diff td,.diff th{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left}
+  .diff th{color:var(--muted);font-weight:500;background:var(--panel2)}
+  .diff .ok{color:#7ee787} .diff .no{color:#ff7b72}
+  .diff td code{font-family:var(--mono);font-size:12px}
+  .placeholder{color:var(--muted);font-size:13.5px;padding:30px 0;text-align:center}
+  .err{color:#ff7b72;background:#2a1717;border:1px solid #5a2a2a;border-radius:8px;padding:10px 12px;font-size:13px;font-family:var(--mono);white-space:pre-wrap}
+  .raw{margin-top:14px}
+  details summary{cursor:pointer;color:var(--muted);font-size:12.5px}
+  pre.json{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:11px;font-size:12px;overflow:auto;margin:6px 0 0}
+  .statuschip{font-family:var(--mono);font-weight:700}
+  .s2{color:#7ee787}.s4{color:#e3b341}.s5{color:#ff7b72}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>QueueStorm Investigator</h1>
+    <div class="sub">Live test console · POST /analyze-ticket</div>
+  </div>
+  <div class="badge"><span class="dot" id="healthDot"></span><span id="healthText">checking /health…</span></div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Request</h2>
+    <label for="preset">Preset case</label>
+    <select id="preset"><option value="">— custom —</option></select>
+    <label for="body">Request JSON</label>
+    <textarea id="body" spellcheck="false">{
+  "ticket_id": "TKT-001",
+  "complaint": "I sent 5000 taka to a wrong number around 2pm today. The number was supposed to be 01712345678 but I typed it wrong.",
+  "transaction_history": [
+    { "transaction_id": "TXN-9101", "timestamp": "2026-04-14T14:08:22Z", "type": "transfer", "amount": 5000, "counterparty": "+8801719876543", "status": "completed" }
+  ]
+}</textarea>
+    <div class="row">
+      <button id="analyze">Analyze ticket</button>
+      <button class="ghost" id="format">Format JSON</button>
+      <span class="meta" id="reqMeta"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Response</h2>
+    <div id="result"><div class="placeholder">Run a case to see the structured verdict.</div></div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let presetMap = {}; // id -> {input, expected}
+
+const escapeHtml = (s) => String(s).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// --- lightweight mirror of src/safety.js so the safety badge reflects real screening ---
+function screenReply(text){
+  if(typeof text!=='string'||!text.trim()) return {safe:false,violations:['empty_reply']};
+  const v=[];
+  const cred=text.match(/\b(share|send|provide|give|tell|enter|type|confirm|verify|submit)\b[^.?!]{0,40}\b(pin|otp|password|cvv|card\s*number|full\s*card)\b/i);
+  if(cred){
+    const w=text.slice(Math.max(0,cred.index-25),cred.index+cred[0].length);
+    if(!/\b(do not|don'?t|never|not|won'?t|shouldn'?t|cannot|can'?t)\b/i.test(w)) v.push('credential_request');
+  }
+  if(/\b(we|i|our team)\b[^.?!]{0,40}\b(will\s+(refund|reverse|unblock|recover)|have\s+(refunded|reversed|unblocked|recovered)|refunded\s+you|reversed\s+your|unblocked\s+your)\b/i.test(text)
+     ||/\b(your (refund|reversal) (has|is) (been )?(processed|approved|completed|done))\b/i.test(text)) v.push('unauthorized_promise');
+  if(/(?:\+?\d[\s-]?){8,}/.test(text)||/https?:\/\/|www\./i.test(text)||/\b(western union|send money to|transfer to this|contact the police|call this number|outside official)\b/i.test(text)) v.push('third_party_redirect');
+  return {safe:v.length===0,violations:v};
+}
+
+async function checkHealth(){
+  try{
+    const r=await fetch('/health'); const b=await r.json();
+    const ok=r.ok&&b.status==='ok';
+    $('healthDot').className='dot '+(ok?'ok':'bad');
+    $('healthText').textContent=ok?'/health ok':'/health failing';
+  }catch{ $('healthDot').className='dot bad'; $('healthText').textContent='/health unreachable'; }
+}
+
+async function loadPresets(){
+  try{
+    const data=await (await fetch('/cases')).json();
+    const sel=$('preset');
+    const groups=[['Samples','samples'],['Edge cases','edge'],['Multilingual','multilingual'],['Adversarial safety','safety']];
+    for(const [name,key] of groups){
+      const arr=data[key]||[]; if(!arr.length) continue;
+      const og=document.createElement('optgroup'); og.label=name;
+      for(const c of arr){
+        presetMap[c.id]={input:c.input,expected:c.expected||null};
+        const o=document.createElement('option'); o.value=c.id; o.textContent=`${c.id} — ${c.label}`; og.appendChild(o);
+      }
+      sel.appendChild(og);
+    }
+  }catch{/* presets optional */}
+}
+
+$('preset').addEventListener('change',(e)=>{
+  const p=presetMap[e.target.value];
+  if(p) $('body').value=JSON.stringify(p.input,null,2);
+});
+
+$('format').addEventListener('click',()=>{
+  try{ $('body').value=JSON.stringify(JSON.parse($('body').value),null,2); $('reqMeta').textContent=''; }
+  catch(err){ $('reqMeta').textContent='invalid JSON: '+err.message; }
+});
+
+const pill=(k,v,cls)=>`<span class="pill ${cls||''}"><span class="k">${k}</span> ${escapeHtml(v)}</span>`;
+
+function renderDiff(expected,actual){
+  const fields=['relevant_transaction_id','evidence_verdict','case_type','severity','department','human_review_required'];
+  let rows='';
+  for(const f of fields){
+    const ok=JSON.stringify(expected[f])===JSON.stringify(actual[f]);
+    rows+=`<tr><td>${f}</td><td><code>${escapeHtml(JSON.stringify(expected[f]))}</code></td>`
+      +`<td><code>${escapeHtml(JSON.stringify(actual[f]))}</code></td>`
+      +`<td class="${ok?'ok':'no'}">${ok?'✓ match':'✗ differs'}</td></tr>`;
+  }
+  return `<div class="block"><div class="t">Expected vs actual (scored fields)</div>
+    <div class="diff"><table><tr><th>field</th><th>expected</th><th>actual</th><th></th></tr>${rows}</table></div></div>`;
+}
+
+function render(status,latency,body,expected){
+  const sc=status>=200&&status<300?'s2':status>=400&&status<500?'s4':'s5';
+  let html=`<div class="grid" style="margin-bottom:6px">
+    <span class="pill"><span class="k">HTTP</span> <span class="statuschip ${sc}">${status}</span></span>
+    <span class="pill"><span class="k">latency</span> ${latency} ms</span></div>`;
+
+  if(!body || typeof body!=='object'){ $('result').innerHTML=html+`<div class="err">${escapeHtml(JSON.stringify(body))}</div>`; return; }
+  if(body.error){ $('result').innerHTML=html+`<div class="err">error: ${escapeHtml(body.error)}</div>`; return; }
+
+  const scr=screenReply(body.customer_reply||'');
+  html+=`<div class="grid">
+    ${pill('txn',body.relevant_transaction_id===null?'null':body.relevant_transaction_id)}
+    ${pill('verdict',body.evidence_verdict,'v-'+body.evidence_verdict)}
+    ${pill('case',body.case_type)}
+    ${pill('severity',body.severity,'sev-'+body.severity)}
+    ${pill('dept',body.department)}
+    ${pill('human review',String(body.human_review_required), body.human_review_required?'sev-medium':'sev-low')}
+    ${body.confidence!==undefined?pill('confidence',body.confidence):''}
+  </div>`;
+
+  html+=`<div class="block"><div class="t">Safety screen (customer_reply)</div>
+    <div class="b">${scr.safe?'<span class="safe-ok">✓ passes — no credential request, no unauthorized promise, no third-party redirect</span>':'<span class="safe-bad">✗ VIOLATION: '+scr.violations.join(', ')+'</span>'}</div></div>`;
+
+  html+=`<div class="block"><div class="t">customer_reply</div><div class="b reply">${escapeHtml(body.customer_reply||'')}</div></div>`;
+  html+=`<div class="block"><div class="t">agent_summary</div><div class="b">${escapeHtml(body.agent_summary||'')}</div></div>`;
+  html+=`<div class="block"><div class="t">recommended_next_action</div><div class="b">${escapeHtml(body.recommended_next_action||'')}</div></div>`;
+  if(body.reason_codes) html+=`<div class="block"><div class="t">reason_codes</div><div class="b">${escapeHtml((body.reason_codes||[]).join(', '))}</div></div>`;
+
+  if(expected) html+=renderDiff(expected,body);
+
+  html+=`<div class="raw"><details><summary>Raw JSON response</summary><pre class="json">${escapeHtml(JSON.stringify(body,null,2))}</pre></details></div>`;
+  $('result').innerHTML=html;
+}
+
+$('analyze').addEventListener('click',async()=>{
+  let payload;
+  try{ payload=JSON.parse($('body').value); }
+  catch(err){ $('reqMeta').textContent='invalid JSON: '+err.message; return; }
+  $('reqMeta').textContent='';
+  const expected=(presetMap[$('preset').value]||{}).expected||null;
+
+  const btn=$('analyze'); btn.disabled=true; btn.textContent='Analyzing…';
+  const t0=performance.now();
+  try{
+    const r=await fetch('/analyze-ticket',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const latency=Math.round(performance.now()-t0);
+    const body=await r.json().catch(()=>({error:'non-JSON response'}));
+    render(r.status,latency,body,expected);
+  }catch(err){
+    $('result').innerHTML=`<div class="err">request failed: ${escapeHtml(err.message)}</div>`;
+  }finally{ btn.disabled=false; btn.textContent='Analyze ticket'; }
+});
+
+checkHealth(); loadPresets();
+</script>
+</body>
+</html>

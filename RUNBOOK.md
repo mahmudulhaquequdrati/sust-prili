@@ -30,7 +30,8 @@ curl -X POST http://localhost:8000/analyze-ticket \
 Run the test suite and the live smoke test:
 
 ```bash
-npm test                                   # 26 tests
+npm test                                   # 44 tests
+npm run report                             # every case, expected-vs-actual + docs/TEST_REPORT.md
 BASE_URL=http://localhost:8000 npm run smoke
 ```
 

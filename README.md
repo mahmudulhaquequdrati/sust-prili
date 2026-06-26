@@ -40,9 +40,9 @@ This is a **hybrid, rules-first** system:
   the same transaction id (no hallucinated `TXN-…`), preserves the language, and stays a sane length.
   On any timeout/error/missing-key/failed-check it silently falls back to the rules-generated reply.
   The LLM never influences the verdict, classification, routing, or safety decision.
-- **Provider: DeepSeek.** Set `DEEPSEEK_API_KEY` to enable polishing (defaults to `deepseek-v4-flash`;
-  override with `MODEL_NAME`). DeepSeek's API is OpenAI-compatible. With no key the service runs fully
-  in deterministic mode.
+- **Provider: DeepSeek.** Set `DEEPSEEK_API_KEY` to enable polishing; `LLM_BASE_URL` and `MODEL_NAME`
+  come from the environment (see [`.env.example`](.env.example) — we use `deepseek-v4-flash`).
+  DeepSeek's API is OpenAI-compatible. With no key the service runs fully in deterministic mode.
 
 This directly fits the rubric: Evidence Reasoning (35) and Safety (20) are deterministic and always
 correct-by-construction, while still allowing nicer prose for the Response Quality (10) manual review.
@@ -52,7 +52,7 @@ correct-by-construction, while still allowing nicer prose for the Response Quali
 | Model | Where it runs | Why / role | Required? |
 |---|---|---|---|
 | **Deterministic rule engine** (our own code) | In-process, on the API host | Primary engine: all evidence reasoning, classification, routing, and safety | **Yes (always on)** |
-| **DeepSeek** (`deepseek-v4-flash` default; any DeepSeek model via `MODEL_NAME`) | DeepSeek API over HTTPS, 8 s timeout | Optional: rephrase `customer_reply` only; output evaluated for safety + txn-id + language; rules fallback | No (set `DEEPSEEK_API_KEY`) |
+| **DeepSeek** (`deepseek-v4-flash` via `MODEL_NAME`; any DeepSeek model) | DeepSeek API over HTTPS, 8 s timeout | Optional: rephrase `customer_reply` only; output evaluated for safety + txn-id + language; rules fallback | No (set `DEEPSEEK_API_KEY`) |
 
 No GPU, no local model weights, no multi-GB downloads, no runtime training. The service scores fully
 in pure rule-based mode with **zero API keys**.
@@ -91,7 +91,9 @@ curl http://localhost:8000/health           # -> {"status":"ok"}
 ### Run the tests
 
 ```bash
-npm test          # 26 tests: 10 sample cases + safety battery + HTTP contract
+npm test          # 44 tests: 10 sample cases + edge/multilingual + safety battery + HTTP contract
+npm run report    # runs EVERY case (sample/edge/safety/multilingual/robustness), prints expected-vs-actual,
+                  # and writes docs/TEST_REPORT.md
 ```
 
 ### Live smoke test (local or deployed)
@@ -100,11 +102,20 @@ npm test          # 26 tests: 10 sample cases + safety battery + HTTP contract
 BASE_URL=http://localhost:8000 npm run smoke   # POSTs all 10 sample inputs, checks schema/safety/latency
 ```
 
+### Browser test console
+
+With the service running, open **http://localhost:8000/** for an interactive console: pick any
+preset case, edit the request JSON, POST it, and see the verdict rendered with severity/verdict
+chips, a live safety-screen indicator, latency, and an expected-vs-actual diff. It is a dev/QA aid
+served alongside the API — the judge harness only calls `/health` and `/analyze-ticket`, so it does
+not affect scoring.
+
 ### Optional: enable DeepSeek reply polishing
 
 ```bash
-export DEEPSEEK_API_KEY=sk-...        # enables optional polishing
-export MODEL_NAME=deepseek-v4-flash   # optional (any DeepSeek model)
+export DEEPSEEK_API_KEY=sk-...            # enables optional polishing
+export LLM_BASE_URL=https://api.deepseek.com
+export MODEL_NAME=deepseek-v4-flash       # any DeepSeek model
 npm start
 ```
 
@@ -198,8 +209,9 @@ docker run -p 8000:8000 --env-file judging.env queuestorm-team
 
 ```
 src/        server, validation, extraction, matching, classification, reply, safety, optional LLM
-test/       node:test suites (samples, safety, HTTP) + live smoke script
-scripts/    sample_output.json generator
-docs/       PROJECT_SPEC, CONTEXT, DECISIONS, TRACKING, TEST_MATRIX
+public/     browser test console (served at GET /)
+test/       node:test suites (samples, edge, safety, HTTP) + shared cases.js registry + live smoke
+scripts/    sample_output.json generator + run_all_cases.js report runner (npm run report)
+docs/       PROJECT_SPEC, CONTEXT, DECISIONS, TRACKING, TEST_MATRIX, TEST_REPORT (generated)
 Dockerfile  node:20-slim image (<500MB)
 ```
