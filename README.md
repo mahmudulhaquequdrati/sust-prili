@@ -57,6 +57,11 @@ correct-by-construction, while still allowing nicer prose for the Response Quali
 No GPU, no local model weights, no multi-GB downloads, no runtime training. The service scores fully
 in pure rule-based mode with **zero API keys**.
 
+> **Deployed mode:** the public instance runs **rule-only** (no `DEEPSEEK_API_KEY` set) for
+> reproducible, sub-5 s, dependency-free responses across all judge cases. The optional DeepSeek
+> polish only rephrases `customer_reply` and never affects the scored reasoning/safety fields, so
+> leaving it off costs no points on Evidence, Safety, or Schema — it only removes latency/quota risk.
+
 ## Safety logic (the disqualifier zone)
 
 Every `customer_reply` — whether rules-generated or LLM-polished — passes through
